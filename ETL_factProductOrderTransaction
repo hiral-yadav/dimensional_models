@@ -1,0 +1,30 @@
+INSERT INTO factProductOrderTransaction (
+    WITH base_data as (
+SELECT 
+        _data.*
+        FROM
+            (WITH RAW_DATA AS
+                    (SELECT O.ORDER_ID,
+                            O.CUSTOMER_ID,
+                            O.ORDER_DATE,
+                            P.PRODUCT_ID,
+                            P.CATEGORY_ID,
+                            OD.QUANTITY QUANT,
+                            P.PRICE PRICE,
+                            (OD.quantity * P.PRICE) total_price
+                        FROM ORDERS O
+                        JOIN ORDER_DETAILS OD ON O.ORDER_ID = OD.ORDER_ID
+                        JOIN PRODUCTS P ON OD.PRODUCT_ID = P.PRODUCT_ID
+                        JOIN CATEGORIES PC ON P.CATEGORY_ID = PC.CATEGORY_ID
+                        JOIN CUSTOMERS C ON O.CUSTOMER_ID = C.CUSTOMER_ID) 
+                SELECT DISTINCT RAW_DATA.ORDER_ID,
+                    RAW_DATA.CUSTOMER_ID,
+                    RAW_DATA.CATEGORY_ID,
+                    RAW_DATA.ORDER_DATE,
+                    SUM(RAW_DATA.total_price) OVER (PARTITION BY RAW_DATA.CATEGORY_ID, RAW_DATA.CUSTOMER_ID) price
+                FROM RAW_DATA order by RAW_DATA.order_id) _data)
+    select nextval('factProductOrderTransaction_id_seq'), dorder.id, dcustomer.id customer_id, dcategory.id category_id, base.order_date order_date, base.price 
+    from 
+    dimorders dorder join base_data base on dorder.order_id = base.order_id 
+    join dimcustomers dcustomer on dcustomer.customer_id = base.customer_id 
+    join dimcategories dcategory on dcategory.category_id = base.category_id);
